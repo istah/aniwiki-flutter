@@ -29,7 +29,7 @@ The app supports:
 
 ### Backend
 
-`````bash
+```bash
 git clone https://github.com/<your-username>/aniwiki-flutter.git
 cd aniwiki-flutter/backend
 
@@ -42,18 +42,21 @@ pip install -r requirements.txt
 # Run locally
 python main.py
 # API now available at http://127.0.0.1:8000
+```
 
 Test endpoints:
-	•	GET /health
-	•	GET /api/anime/search?q=naruto&page=1&limit=5
-	•	GET /api/manga/search?q=one piece&page=1&limit=5
-	•	GET /api/characters/search?q=naruto&page=1&limit=5
-	•	GET /api/anime/<id>
+
+- GET /health
+- GET /api/anime/search?q=naruto&page=1&limit=5
+- GET /api/manga/search?q=one piece&page=1&limit=5
+- GET /api/characters/search?q=naruto&page=1&limit=5
+- GET /api/anime/<id>
 
 ### Frontend
-````bash
+
+```bash
 cd ../app
 
 # Run in dev mode with backend url
 flutter run -d chrome --dart-define=API_BASE_URL=http://127.0.0.1:8000
-`````
+```
