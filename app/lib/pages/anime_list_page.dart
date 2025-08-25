@@ -89,9 +89,9 @@ class _AnimeListPageState extends State<AnimeListPage> {
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 5,
-                childAspectRatio: 0.65,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 220,
+                childAspectRatio: 0.62,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
@@ -116,11 +116,17 @@ class _AnimeListPageState extends State<AnimeListPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(it.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              Text(
+                                it.title,
+                                maxLines: 2,
+                                softWrap: true,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
                               const SizedBox(height: 4),
                               Wrap(
                                 spacing: 4,
-                                runSpacing: -6,
+                                runSpacing: 4,
                                 children: it.genres.take(3).map((g) => Chip(
                                   label: Text(g),
                                   visualDensity: VisualDensity.compact,
@@ -129,15 +135,19 @@ class _AnimeListPageState extends State<AnimeListPage> {
                               ),
                               const SizedBox(height: 6),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  if (it.score != null) Row(
-                                    children: [
-                                      const Icon(Icons.star, size: 16),
-                                      const SizedBox(width: 4),
-                                      Text('${it.score}'),
-                                    ],
-                                  ),
+                                  if (it.score != null)
+                                    Flexible(
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.star, size: 16),
+                                          const SizedBox(width: 4),
+                                          Flexible(child: Text('${it.score}', overflow: TextOverflow.ellipsis)),
+                                        ],
+                                      ),
+                                    ),
+                                  const Spacer(),
                                   Text(it.year?.toString() ?? ''),
                                 ],
                               ),
