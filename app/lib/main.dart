@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'pages/anime_list_page.dart';
 import 'pages/anime_detail_page.dart';
@@ -9,16 +10,32 @@ import 'pages/anime_detail_page.dart';
 /// flutter build web --release --dart-define=API_BASE_URL=https://massalini.pythonanywhere.com
 const apiBase = String.fromEnvironment('API_BASE_URL', defaultValue: '');
 
-void main() {
-  runApp(const AniWikiApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final saved = prefs.getString('theme_mode');
+  final initialMode = _decodeTheme(saved);
+  runApp(AniWikiApp(prefs: prefs, initialMode: initialMode));
 }
 
-class AniWikiApp extends StatelessWidget {
-  const AniWikiApp({super.key});
+class AniWikiApp extends StatefulWidget {
+  final SharedPreferences prefs;
+  final ThemeMode initialMode;
+  const AniWikiApp({super.key, required this.prefs, required this.initialMode});
 
   @override
-  Widget build(BuildContext context) {
-    final router = GoRouter(
+  State<AniWikiApp> createState() => _AniWikiAppState();
+}
+
+class _AniWikiAppState extends State<AniWikiApp> {
+  late final ThemeController _controller;
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ThemeController(mode: widget.initialMode, prefs: widget.prefs);
+    _router = GoRouter(
       routes: [
         GoRoute(
           path: '/',
@@ -44,16 +61,80 @@ class AniWikiApp extends StatelessWidget {
         ),
       ],
     );
+  }
 
-    return MaterialApp.router(
-      title: 'AniWiki',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+  @override
+  Widget build(BuildContext context) {
+    return ThemeControllerProvider(
+      controller: _controller,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => MaterialApp.router(
+          title: 'AniWiki',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+          ),
+          darkTheme: ThemeData.dark(useMaterial3: true),
+          themeMode: _controller.mode,
+          routerConfig: _router,
+        ),
       ),
-      darkTheme: ThemeData.dark(useMaterial3: true),
-      routerConfig: router,
     );
   }
+}
+
+/// Simple ChangeNotifier-based theme controller with persistence.
+class ThemeController extends ChangeNotifier {
+  ThemeMode mode;
+  final SharedPreferences prefs;
+  ThemeController({required this.mode, required this.prefs});
+
+  void setMode(ThemeMode m) {
+    if (mode == m) return;
+    mode = m;
+    prefs.setString('theme_mode', _encodeTheme(m));
+    notifyListeners();
+  }
+
+  /// Cycles System → Light → Dark → System
+  void cycle() {
+    switch (mode) {
+      case ThemeMode.system:
+        setMode(ThemeMode.light);
+        break;
+      case ThemeMode.light:
+        setMode(ThemeMode.dark);
+        break;
+      case ThemeMode.dark:
+        setMode(ThemeMode.system);
+        break;
+    }
+  }
+}
+
+class ThemeControllerProvider extends InheritedNotifier<ThemeController> {
+  const ThemeControllerProvider({super.key, required ThemeController controller, required Widget child})
+      : super(notifier: controller, child: child);
+
+  static ThemeController of(BuildContext context) {
+    final provider = context.dependOnInheritedWidgetOfExactType<ThemeControllerProvider>();
+    assert(provider != null, 'ThemeControllerProvider not found in context');
+    return provider!.notifier!;
+    }
+}
+
+String _encodeTheme(ThemeMode m) => switch (m) {
+      ThemeMode.light => 'light',
+      ThemeMode.dark => 'dark',
+      _ => 'system',
+    };
+
+ThemeMode _decodeTheme(String? s) {
+  return switch (s) {
+    'light' => ThemeMode.light,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.system,
+  };
 }

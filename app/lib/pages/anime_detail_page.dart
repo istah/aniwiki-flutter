@@ -42,7 +42,36 @@ class _AnimeDetailPageState extends State<AnimeDetailPage> {
     return Scaffold(
       appBar: AppBar(title: Text('Anime #${widget.id}')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(
+                    width: 260,
+                    height: 360,
+                    child: _DetailSkeletonBox(width: 260, height: 360),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        _DetailSkeletonBox(width: 320, height: 24),
+                        SizedBox(height: 12),
+                        _DetailSkeletonChips(),
+                        SizedBox(height: 12),
+                        _DetailSkeletonBox(width: 220, height: 16),
+                        SizedBox(height: 8),
+                        _DetailSkeletonBox(width: 260, height: 16),
+                        SizedBox(height: 16),
+                        _DetailSkeletonParagraph(lines: 5),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )
           : _error != null
               ? Center(child: Text(_error!))
               : _data == null
@@ -101,6 +130,55 @@ class _AnimeDetailPageState extends State<AnimeDetailPage> {
                         ],
                       ),
                     ),
+    );
+  }
+}
+
+class _DetailSkeletonBox extends StatelessWidget {
+  final double height;
+  final double? width;
+  const _DetailSkeletonBox({this.height = 12, this.width, super.key});
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeInOut,
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.6),
+        borderRadius: const BorderRadius.all(Radius.circular(6)),
+      ),
+    );
+  }
+}
+
+class _DetailSkeletonParagraph extends StatelessWidget {
+  final int lines;
+  const _DetailSkeletonParagraph({this.lines = 4, super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(lines, (i) => const Padding(
+        padding: EdgeInsets.only(bottom: 8),
+        child: _DetailSkeletonBox(width: double.infinity, height: 14),
+      )),
+    );
+  }
+}
+
+class _DetailSkeletonChips extends StatelessWidget {
+  const _DetailSkeletonChips({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      children: const [
+        _DetailSkeletonBox(width: 60, height: 24),
+        _DetailSkeletonBox(width: 70, height: 24),
+        _DetailSkeletonBox(width: 50, height: 24),
+      ],
     );
   }
 }

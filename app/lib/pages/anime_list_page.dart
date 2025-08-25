@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
+import '../main.dart';
 
 import '../api/aniwiki_api.dart';
 import 'anime_detail_page.dart';
@@ -70,6 +71,20 @@ class _AnimeListPageState extends State<AnimeListPage> {
                 ),
               ),
               const SizedBox(width: 8),
+              // Theme toggle (placeholder wiring; functionality will be added next)
+              IconButton(
+  tooltip: 'Toggle theme',
+  onPressed: () {
+    final controller = ThemeControllerProvider.of(context);
+    controller.cycle();
+  },
+  icon: Icon(
+    Theme.of(context).brightness == Brightness.dark
+        ? Icons.dark_mode
+        : Icons.light_mode,
+  ),
+),
+              const SizedBox(width: 4),
               FilledButton.icon(
                 onPressed: () { _page = 1; _fetch(); },
                 icon: const Icon(Icons.search),
