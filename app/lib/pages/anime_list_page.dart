@@ -78,14 +78,72 @@ class _AnimeListPageState extends State<AnimeListPage> {
             ],
           ),
         ),
-        if (_loading) const Padding(
-          padding: EdgeInsets.all(24),
-          child: CircularProgressIndicator(),
-        ),
-        if (_error != null) Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        ),
+        if (_loading)
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(12),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 220,
+                childAspectRatio: 0.62,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: 12,
+              itemBuilder: (_, __) => Card(
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    const Expanded(
+                      child: _SkeletonBox(borderRadius: BorderRadius.zero),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          _SkeletonBox(height: 14, width: 160),
+                          SizedBox(height: 8),
+                          _SkeletonBox(height: 12, width: 80),
+                          SizedBox(height: 8),
+                          _SkeletonBox(height: 12, width: 60),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Theme.of(context).colorScheme.onErrorContainer),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _error!,
+                        style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: _fetch,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         if (!_loading && _error == null)
           Expanded(
             child: GridView.builder(
@@ -181,6 +239,26 @@ class _AnimeListPageState extends State<AnimeListPage> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _SkeletonBox extends StatelessWidget {
+  final double height;
+  final double? width;
+  final BorderRadius borderRadius;
+  const _SkeletonBox({this.height = 12, this.width, this.borderRadius = const BorderRadius.all(Radius.circular(6)), super.key});
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeInOut,
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.6),
+        borderRadius: borderRadius,
+      ),
     );
   }
 }
