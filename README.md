@@ -29,7 +29,7 @@ The app supports:
 
 ### Backend
 
-````bash
+`````bash
 git clone https://github.com/<your-username>/aniwiki-flutter.git
 cd aniwiki-flutter/backend
 
@@ -51,9 +51,9 @@ Test endpoints:
 	•	GET /api/anime/<id>
 
 ### Frontend
-```bash
+````bash
 cd ../app
 
 # Run in dev mode with backend url
 flutter run -d chrome --dart-define=API_BASE_URL=http://127.0.0.1:8000
-````
+`````
