@@ -58,11 +58,41 @@ def _normalize_anime_item(item: Dict[str, Any]) -> Dict[str, Any]:
         "genres": [g.get("name") for g in item.get("genres", [])],
     }
 
+def _normalize_manga_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    images = item.get("images") or {}
+    jpg = images.get("jpg") or {}
+    return {
+        "id": item.get("mal_id"),
+        "title": item.get("title") or item.get("title_english") or item.get("title_japanese"),
+        "image": jpg.get("image_url"),
+        "score": item.get("score"),
+        "year": item.get("year"),
+        "type": item.get("type"),
+        "chapters": item.get("chapters"),
+        "volumes": item.get("volumes"),
+        "genres": [g.get("name") for g in item.get("genres", [])],
+    }
+
+def _normalize_character_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    images = item.get("images") or {}
+    jpg = images.get("jpg") or {}
+    name = item.get("name") or ""
+    return {
+        "id": item.get("mal_id"),
+        "name": name,
+        "nicknames": item.get("nicknames") or [],
+        "image": jpg.get("image_url"),
+        "favorites": item.get("favorites"),
+        "about": item.get("about"),
+    }
+
 # --- routes ---
 
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
+
+# ---- Anime ----
 
 @app.get("/api/anime/search")
 def search_anime():
@@ -138,6 +168,138 @@ def anime_detail(anime_id: int):
             "url": trailer.get("url"),
             "youtube_id": trailer.get("youtube_id"),
         },
+    })
+
+# ---- Manga ----
+
+@app.get("/api/manga/search")
+def search_manga():
+    q = request.args.get("q", default="")
+    try:
+        page = int(request.args.get("page", "1"))
+    except ValueError:
+        page = 1
+    try:
+        limit = int(request.args.get("limit", "24"))
+    except ValueError:
+        limit = 24
+
+    params = {"q": q, "page": page, "limit": limit}
+    client = get_client()
+    try:
+        r = client.get("/manga", params=params)
+        r.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 404:
+            return jsonify(error={"code": "NOT_FOUND", "message": "Manga not found"}), 404
+        return jsonify(error={"code": "UPSTREAM_ERROR", "message": e.response.text}), status
+    except httpx.HTTPError as e:
+        return jsonify(error={"code": "NETWORK_ERROR", "message": str(e)}), 502
+
+    payload = r.json() or {}
+    items = [_normalize_manga_item(it) for it in payload.get("data", [])]
+    pagination = payload.get("pagination") or {}
+
+    return jsonify({
+        "items": items,
+        "page": pagination.get("current_page", page),
+        "hasNext": bool(pagination.get("has_next_page")),
+    })
+
+@app.get("/api/manga/<int:manga_id>")
+def manga_detail(manga_id: int):
+    client = get_client()
+    try:
+        r = client.get(f"/manga/{manga_id}")
+        r.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 404:
+            return jsonify(error={"code": "NOT_FOUND", "message": "Manga not found"}), 404
+        return jsonify(error={"code": "UPSTREAM_ERROR", "message": e.response.text}), status
+    except httpx.HTTPError as e:
+        return jsonify(error={"code": "NETWORK_ERROR", "message": str(e)}), 502
+
+    data = (r.json() or {}).get("data") or {}
+    images = data.get("images") or {}
+    jpg = images.get("jpg") or {}
+    return jsonify({
+        "id": data.get("mal_id"),
+        "title": data.get("title") or data.get("title_english") or data.get("title_japanese"),
+        "synopsis": data.get("synopsis"),
+        "image": jpg.get("image_url"),
+        "score": data.get("score"),
+        "rank": data.get("rank"),
+        "popularity": data.get("popularity"),
+        "year": data.get("year"),
+        "type": data.get("type"),
+        "chapters": data.get("chapters"),
+        "volumes": data.get("volumes"),
+        "genres": [g.get("name") for g in (data.get("genres") or [])],
+    })
+
+# ---- Characters ----
+
+@app.get("/api/characters/search")
+def search_characters():
+    q = request.args.get("q", default="")
+    try:
+        page = int(request.args.get("page", "1"))
+    except ValueError:
+        page = 1
+    try:
+        limit = int(request.args.get("limit", "24"))
+    except ValueError:
+        limit = 24
+
+    params = {"q": q, "page": page, "limit": limit}
+    client = get_client()
+    try:
+        r = client.get("/characters", params=params)
+        r.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 404:
+            return jsonify(error={"code": "NOT_FOUND", "message": "Characters not found"}), 404
+        return jsonify(error={"code": "UPSTREAM_ERROR", "message": e.response.text}), status
+    except httpx.HTTPError as e:
+        return jsonify(error={"code": "NETWORK_ERROR", "message": str(e)}), 502
+
+    payload = r.json() or {}
+    items = [_normalize_character_item(it) for it in payload.get("data", [])]
+    pagination = payload.get("pagination") or {}
+
+    return jsonify({
+        "items": items,
+        "page": pagination.get("current_page", page),
+        "hasNext": bool(pagination.get("has_next_page")),
+    })
+
+@app.get("/api/characters/<int:char_id>")
+def character_detail(char_id: int):
+    client = get_client()
+    try:
+        r = client.get(f"/characters/{char_id}")
+        r.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 404:
+            return jsonify(error={"code": "NOT_FOUND", "message": "Character not found"}), 404
+        return jsonify(error={"code": "UPSTREAM_ERROR", "message": e.response.text}), status
+    except httpx.HTTPError as e:
+        return jsonify(error={"code": "NETWORK_ERROR", "message": str(e)}), 502
+
+    data = (r.json() or {}).get("data") or {}
+    images = data.get("images") or {}
+    jpg = images.get("jpg") or {}
+    return jsonify({
+        "id": data.get("mal_id"),
+        "name": data.get("name"),
+        "nicknames": data.get("nicknames") or [],
+        "about": data.get("about"),
+        "image": jpg.get("image_url"),
+        "favorites": data.get("favorites"),
     })
 
 if __name__ == "__main__":
