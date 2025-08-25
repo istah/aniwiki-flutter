@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
 
@@ -99,9 +100,7 @@ class _AnimeListPageState extends State<AnimeListPage> {
               itemBuilder: (_, i) {
                 final it = _items[i];
                 return InkWell(
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => AnimeDetailPage(id: it.id),
-                  )),
+                  onTap: () => context.go('/anime/${it.id}'),
                   child: Card(
                     clipBehavior: Clip.antiAlias,
                     child: Column(

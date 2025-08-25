@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'pages/anime_list_page.dart';
+import 'pages/anime_detail_page.dart';
 
 /// Set at build time with:
 /// flutter run -d chrome --dart-define=API_BASE_URL=https://massalini.pythonanywhere.com
@@ -16,7 +18,34 @@ class AniWikiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const Scaffold(
+            body: SafeArea(child: AnimeListPage()),
+          ),
+          routes: [
+            GoRoute(
+              path: 'anime/:id',
+              builder: (context, state) {
+                final idStr = state.pathParameters['id'];
+                final id = int.tryParse(idStr ?? '');
+                return Scaffold(
+                  body: SafeArea(
+                    child: id == null
+                        ? const Center(child: Text('Invalid anime id'))
+                        : AnimeDetailPage(id: id),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+
+    return MaterialApp.router(
       title: 'AniWiki',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -24,11 +53,7 @@ class AniWikiApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
       ),
       darkTheme: ThemeData.dark(useMaterial3: true),
-      home: const Scaffold(
-        body: SafeArea(
-          child: AnimeListPage(),
-        ),
-      ),
+      routerConfig: router,
     );
   }
 }
