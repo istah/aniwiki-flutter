@@ -1,49 +1,48 @@
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 API_BASE = os.getenv("JIKAN_BASE_URL", "https://api.jikan.moe/v4")
 
-_client: Optional[httpx.AsyncClient] = None
+# --- Flask app ---
+app = Flask(__name__)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+# CORS: set allowed origins from env, comma-separated; "*" for dev
+origins_env = os.getenv("CORS_ORIGINS", "*").strip()
+allow_origins: List[str]
+if origins_env == "*":
+    allow_origins = ["*"]
+else:
+    allow_origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+
+CORS(app, resources={r"/*": {"origins": allow_origins}}, supports_credentials=True)
+
+# --- httpx client (sync) ---
+_client: httpx.Client | None = None
+
+def get_client() -> httpx.Client:
     global _client
-    _client = httpx.AsyncClient(
-        base_url=API_BASE,
-        timeout=10.0,
-        headers={"User-Agent": "AniWiki/0.1.0 (+fastapi)"},
-    )
-    try:
-        yield
-    finally:
-        if _client:
-            await _client.aclose()
+    if _client is None:
+        _client = httpx.Client(
+            base_url=API_BASE,
+            timeout=10.0,
+            headers={"User-Agent": "AniWiki/0.1.0 (+flask)"},
+        )
+    return _client
+
+@app.teardown_appcontext
+def _close_client(exception: Exception | None) -> None:  # noqa: ARG001
+    global _client
+    if _client is not None:
+        try:
+            _client.close()
+        finally:
             _client = None
 
-app = FastAPI(title="AniWiki API", version="0.1.0", lifespan=lifespan)
-
-# CORS: на проде укажи домен фронта (Firebase Hosting) в переменной окружения CORS_ORIGINS
-origins_env = os.getenv("CORS_ORIGINS", "*").strip()
-allow_origins = ["*"] if origins_env == "*" else [o.strip() for o in origins_env.split(",") if o.strip()]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/health")
-async def health() -> Dict[str, str]:
-    return {"status": "ok"}
-
+# --- helpers ---
 
 def _normalize_anime_item(item: Dict[str, Any]) -> Dict[str, Any]:
     images = item.get("images") or {}
@@ -59,67 +58,70 @@ def _normalize_anime_item(item: Dict[str, Any]) -> Dict[str, Any]:
         "genres": [g.get("name") for g in item.get("genres", [])],
     }
 
+# --- routes ---
+
+@app.get("/health")
+def health() -> Dict[str, str]:
+    return {"status": "ok"}
 
 @app.get("/api/anime/search")
-async def search_anime(
-    q: str = Query("", description="Search query"),
-    page: int = Query(1, ge=1),
-    limit: int = Query(24, ge=1, le=25),
-    sfw: bool = Query(True, description="Safe for work filter forwarded to Jikan"),
-) -> Dict[str, Any]:
-    """
-    Прокси к Jikan /anime с унифицированной пагинацией.
-    """
-    global _client
-    params = {"q": q, "page": page, "limit": limit, "sfw": str(sfw).lower()}
-
+def search_anime():
+    q = request.args.get("q", default="")
     try:
-        r = await _client.get("/anime", params=params)
+        page = int(request.args.get("page", default="1"))
+    except ValueError:
+        page = 1
+    try:
+        limit = int(request.args.get("limit", default="24"))
+    except ValueError:
+        limit = 24
+    sfw_raw = request.args.get("sfw", default="true").lower()
+    sfw = "true" if sfw_raw in ("1", "true", "yes") else "false"
+
+    params = {"q": q, "page": page, "limit": limit, "sfw": sfw}
+
+    client = get_client()
+    try:
+        r = client.get("/anime", params=params)
         r.raise_for_status()
     except httpx.HTTPStatusError as e:
         status = e.response.status_code
-        detail = e.response.text
         if status == 404:
-            raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Anime not found"})
-        raise HTTPException(status_code=status, detail={"code": "UPSTREAM_ERROR", "message": detail})
+            return jsonify(error={"code": "NOT_FOUND", "message": "Anime not found"}), 404
+        return jsonify(error={"code": "UPSTREAM_ERROR", "message": e.response.text}), status
     except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail={"code": "NETWORK_ERROR", "message": str(e)})
+        return jsonify(error={"code": "NETWORK_ERROR", "message": str(e)}), 502
 
     payload = r.json() or {}
     items = [_normalize_anime_item(it) for it in payload.get("data", [])]
     pagination = payload.get("pagination") or {}
 
-    return {
+    return jsonify({
         "items": items,
         "page": pagination.get("current_page", page),
         "hasNext": bool(pagination.get("has_next_page")),
-    }
+    })
 
-
-@app.get("/api/anime/{anime_id}")
-async def anime_detail(anime_id: int) -> Dict[str, Any]:
-    """
-    Детальная информация по аниме.
-    Для MVP берём базовый /anime/{id}. При желании можно переключиться на /anime/{id}/full.
-    """
-    global _client
+@app.get("/api/anime/<int:anime_id>")
+def anime_detail(anime_id: int):
+    client = get_client()
     try:
-        r = await _client.get(f"/anime/{anime_id}")
+        r = client.get(f"/anime/{anime_id}")
         r.raise_for_status()
     except httpx.HTTPStatusError as e:
         status = e.response.status_code
         if status == 404:
-            raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Anime not found"})
-        raise HTTPException(status_code=status, detail={"code": "UPSTREAM_ERROR", "message": e.response.text})
+            return jsonify(error={"code": "NOT_FOUND", "message": "Anime not found"}), 404
+        return jsonify(error={"code": "UPSTREAM_ERROR", "message": e.response.text}), status
     except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail={"code": "NETWORK_ERROR", "message": str(e)})
+        return jsonify(error={"code": "NETWORK_ERROR", "message": str(e)}), 502
 
     data = (r.json() or {}).get("data") or {}
     images = data.get("images") or {}
     jpg = images.get("jpg") or {}
     trailer = data.get("trailer") or {}
 
-    return {
+    return jsonify({
         "id": data.get("mal_id"),
         "title": data.get("title") or data.get("title_english") or data.get("title_japanese"),
         "synopsis": data.get("synopsis"),
@@ -136,8 +138,8 @@ async def anime_detail(anime_id: int) -> Dict[str, Any]:
             "url": trailer.get("url"),
             "youtube_id": trailer.get("youtube_id"),
         },
-    }
+    })
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8000")), reload=True)
+    # Local dev run (not used on PythonAnywhere WSGI)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")), debug=True)
